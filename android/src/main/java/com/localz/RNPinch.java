@@ -15,9 +15,10 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
-
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.UnexpectedNativeTypeException;
 import com.facebook.react.bridge.WritableMap;
+
 import com.localz.pinch.models.HttpRequest;
 import com.localz.pinch.models.HttpResponse;
 import com.localz.pinch.utils.HttpUtil;
@@ -58,7 +59,6 @@ public class RNPinch extends ReactContextBaseJavaModule {
             version = pInfo.versionName;
             versionCode = String.valueOf(pInfo.versionCode);
         } catch (NameNotFoundException nnfe) {
-            System.out.println("RNAppInfo: package name not found");
         }
     }
 
@@ -98,19 +98,31 @@ public class RNPinch extends ReactContextBaseJavaModule {
                     request.headers = JsonUtil.convertReadableMapToJson(opts.getMap(OPT_HEADER_KEY));
                 }
                 if (opts.hasKey(OPT_SSL_PINNING_KEY)) {
-                    request.certFilename = opts.getMap(OPT_SSL_PINNING_KEY).getString("cert");
+                    try {
+                      String fileName = opts.getMap(OPT_SSL_PINNING_KEY).getString("cert");
+                      if(fileName != null) {
+                        request.certFilenames = new String[]{fileName};
+                      }
+                    } catch(Exception e) {}
+                    try {
+                      ReadableArray certsStrings = opts.getMap(OPT_SSL_PINNING_KEY).getArray("certs");
+                      String[] certs = new String[certsStrings.size()];
+                      for (int i = 0; i < certsStrings.size(); i++) {
+                          certs[i] = certsStrings.getString(i);
+                      }
+                      request.certFilenames = certs;
+                    } catch(Exception e) {}
                 }
                 if (opts.hasKey(OPT_TIMEOUT_KEY)) {
                     request.timeout = opts.getInt(OPT_TIMEOUT_KEY);
                 }
 
                 HttpResponse httpResponse = httpUtil.sendHttpRequest(request);
-                JSONObject jsonHeaders = new JSONObject(httpResponse.headers.toString());
 
                 response.putInt("status", httpResponse.statusCode);
                 response.putString("statusText", httpResponse.statusText);
                 response.putString("bodyString", httpResponse.bodyString);
-                response.putMap("headers", Arguments.fromBundle(BundleJSONConverter.convertToBundle(jsonHeaders)));
+                response.putMap("headers", httpResponse.headers);
 
                 return response;
             } catch(JSONException | IOException | UnexpectedNativeTypeException | KeyStoreException | CertificateException | KeyManagementException | NoSuchAlgorithmException e) {
